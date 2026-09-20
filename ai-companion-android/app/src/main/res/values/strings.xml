@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AI Companion</string>
+    <string name="shortcut_voice">Voice</string>
+    <string name="shortcut_voice_long">Voice Command</string>
+</resources>
