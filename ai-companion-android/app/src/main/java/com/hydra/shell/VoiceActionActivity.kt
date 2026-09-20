@@ -60,7 +60,7 @@ class VoiceActionActivity : Activity() {
                 
                 // Replace with actual server IP/domain
                 val request = Request.Builder()
-                    .url("https://hydra-station.duckdns.org/api/client/execute")
+                    .url("http://hydra-station.duckdns.org:8010/api/client/execute")
                     .post(body)
                     // .addHeader("Authorization", "Bearer YOUR_TOKEN")
                     .build()
