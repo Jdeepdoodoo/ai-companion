@@ -27,7 +27,7 @@ fun ChatScreen(viewModel: HydraViewModel) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TopAppBar(
             title = { Text("Hydra Companion") },
-            colors = TopAppBarDefaults.topAppBarColors(
+            colors = TopAppBarDefaults.smallTopAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 titleContentColor = MaterialTheme.colorScheme.primary
             )
@@ -59,9 +59,7 @@ fun ChatScreen(viewModel: HydraViewModel) {
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Type a message...") },
                 shape = MaterialTheme.shapes.small, // 0.dp
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.outlineVariant,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.outlineVariant,
+                colors = TextFieldDefaults.textFieldColors(
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     disabledIndicatorColor = Color.Transparent
@@ -88,7 +86,7 @@ fun ChatScreen(viewModel: HydraViewModel) {
 
 @Composable
 fun ChatBubble(message: ChatMessage) {
-    val backgroundColor = if (message.isUser) {
+    val containerColor = if (message.isUser) {
         MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.surfaceVariant
@@ -104,7 +102,7 @@ fun ChatBubble(message: ChatMessage) {
         Row(
             modifier = Modifier
                 .clip(shape)
-                .background(backgroundColor)
+                .background(containerColor)
                 .padding(12.dp)
         ) {
             if (message.isLoading) {

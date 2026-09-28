@@ -22,7 +22,7 @@ fun SettingsScreen() {
     ) {
         TopAppBar(
             title = { Text("Settings") },
-            colors = TopAppBarDefaults.topAppBarColors(
+            colors = TopAppBarDefaults.smallTopAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 titleContentColor = MaterialTheme.colorScheme.primary
             )
