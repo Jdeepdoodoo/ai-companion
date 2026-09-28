@@ -4,9 +4,12 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Subject
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,7 +22,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 
 enum class VoiceState {
     Processing,
@@ -28,17 +30,11 @@ enum class VoiceState {
 
 @Composable
 fun VoiceScreen() {
-    // For demonstration, we'll auto-transition from "Processing" to "Results" after 3 seconds.
     var state by remember { mutableStateOf(VoiceState.Processing) }
-
-    LaunchedEffect(Unit) {
-        delay(3000)
-        state = VoiceState.ReadyToSave
-    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFF0D0D12) // Very dark background matching the image
+        color = MaterialTheme.colorScheme.background
     ) {
         when (state) {
             VoiceState.Processing -> ProcessingScreen(
@@ -65,7 +61,7 @@ fun ProcessingScreen(onClose: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Close",
-                tint = Color.White
+                tint = MaterialTheme.colorScheme.onBackground
             )
         }
 
@@ -89,9 +85,8 @@ fun ProcessingScreen(onClose: () -> Unit) {
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Color.White,
-                            Color(0xFFE0B0FF), // Light purple
-                            Color(0xFF8A2BE2).copy(alpha = 0.5f), // BlueViolet glow
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                             Color.Transparent
                         )
                     ),
@@ -102,7 +97,7 @@ fun ProcessingScreen(onClose: () -> Unit) {
         // Loading Text
         Text(
             text = "Sorting the details...",
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 100.dp),
@@ -124,12 +119,12 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         ) {
             IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onBackground)
             }
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "Ready to save",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 18.sp
             )
@@ -143,20 +138,20 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF1E1E24), RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.GraphicEq,
                 contentDescription = null,
-                tint = Color.Gray,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = "\"spent 200 rupees on lunch\"",
-                color = Color.LightGray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontStyle = FontStyle.Italic,
                 fontSize = 15.sp
             )
@@ -169,24 +164,22 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(Color(0xFF38234A), Color(0xFF1E1E24))
-                    ),
-                    shape = RoundedCornerShape(24.dp)
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.small
                 )
                 .padding(24.dp)
         ) {
             Column {
                 Text(
                     text = "₹200.0",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 44.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Today",
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 )
             }
@@ -198,13 +191,13 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF1E1E24), RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
                 .padding(vertical = 8.dp)
         ) {
             DetailRow(icon = Icons.Default.Restaurant, label = "Category", value = "Food and Dining")
-            Divider(color = Color(0xFF2C2C35), modifier = Modifier.padding(horizontal = 16.dp))
+            Divider(color = MaterialTheme.colorScheme.background, modifier = Modifier.padding(horizontal = 16.dp))
             DetailRow(icon = Icons.Default.Payments, label = "Payment mode", value = "Cash")
-            Divider(color = Color(0xFF2C2C35), modifier = Modifier.padding(horizontal = 16.dp))
+            Divider(color = MaterialTheme.colorScheme.background, modifier = Modifier.padding(horizontal = 16.dp))
             DetailRow(icon = Icons.Default.Subject, label = "Note", value = "lunch")
         }
 
@@ -217,12 +210,12 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
                 .fillMaxWidth()
                 .height(56.dp)
                 .padding(bottom = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-            shape = RoundedCornerShape(28.dp)
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            shape = MaterialTheme.shapes.small
         ) {
             Text(
                 text = "That's magic.",
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
@@ -241,14 +234,14 @@ fun DetailRow(icon: ImageVector, label: String, value: String) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFFE58045), // Orange tint matching the image
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column {
-            Text(text = label, color = Color.Gray, fontSize = 13.sp)
+            Text(text = label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(text = value, color = Color.White, fontSize = 16.sp)
+            Text(text = value, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
         }
     }
 }

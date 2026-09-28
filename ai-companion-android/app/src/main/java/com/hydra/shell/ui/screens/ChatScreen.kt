@@ -24,12 +24,12 @@ fun ChatScreen(viewModel: HydraViewModel) {
     val messages by viewModel.messages.collectAsState()
     var textState by remember { mutableStateOf(TextFieldValue("")) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TopAppBar(
             title = { Text("Hydra Companion") },
-            colors = TopAppBarDefaults.smallTopAppBarColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.primary
             )
         )
         
@@ -49,6 +49,7 @@ fun ChatScreen(viewModel: HydraViewModel) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -57,8 +58,10 @@ fun ChatScreen(viewModel: HydraViewModel) {
                 onValueChange = { textState = it },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Type a message...") },
-                shape = RoundedCornerShape(24.dp),
-                colors = TextFieldDefaults.textFieldColors(
+                shape = MaterialTheme.shapes.small, // 0.dp
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.outlineVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.outlineVariant,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     disabledIndicatorColor = Color.Transparent
@@ -71,7 +74,7 @@ fun ChatScreen(viewModel: HydraViewModel) {
                     textState = TextFieldValue("")
                 },
                 modifier = Modifier
-                    .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small)
             ) {
                 Icon(
                     imageVector = Icons.Default.Send,
@@ -86,17 +89,13 @@ fun ChatScreen(viewModel: HydraViewModel) {
 @Composable
 fun ChatBubble(message: ChatMessage) {
     val backgroundColor = if (message.isUser) {
-        MaterialTheme.colorScheme.primaryContainer
+        MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.surfaceVariant
     }
     
     val alignment = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
-    val shape = if (message.isUser) {
-        RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
-    } else {
-        RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
-    }
+    val shape = MaterialTheme.shapes.small // 0.dp
 
     Box(
         modifier = Modifier.fillMaxWidth(),
@@ -111,14 +110,15 @@ fun ChatBubble(message: ChatMessage) {
             if (message.isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
             Text(
                 text = message.text,
                 color = if (message.isUser) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
+                    MaterialTheme.colorScheme.onPrimary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 }
