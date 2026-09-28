@@ -8,17 +8,12 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import com.hydra.shell.HydraViewModel
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Subject
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,23 +27,66 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hydra.shell.HydraViewModel
+import java.util.regex.Pattern
 
 enum class VoiceState {
     Processing,
     ReadyToSave
 }
 
+// Simple heuristic parser for demo purposes
+data class ParsedIntent(
+    val type: IntentType,
+    val amount: String? = null,
+    val note: String? = null
+)
+
+enum class IntentType { EXPENSE, GENERIC, ERROR }
+
+fun parseRecognizedText(text: String): ParsedIntent {
+    if (text.startsWith("Error", ignoreCase = true)) {
+        return ParsedIntent(IntentType.ERROR)
+    }
+    
+    val lowerText = text.lowercase()
+    val isExpense = lowerText.contains("spent") || lowerText.contains("paid") || lowerText.contains("rupee") || lowerText.contains("₹") || lowerText.contains("cost") || lowerText.contains("bought")
+    
+    if (isExpense) {
+        // Try to extract amount
+        val matcher = Pattern.compile("(\\d+(?:\\.\\d+)?)").matcher(lowerText)
+        val amount = if (matcher.find()) matcher.group(1) else "0.0"
+        
+        // Simple note extraction (everything after the amount or keywords)
+        val note = lowerText.replace(Regex("(spent|paid|rupees|₹|cost|bought|\\d+(?:\\.\\d+)?)"), "").trim()
+        
+        return ParsedIntent(
+            type = IntentType.EXPENSE,
+            amount = amount,
+            note = if (note.isEmpty()) "General Expense" else note
+        )
+    }
+    
+    return ParsedIntent(IntentType.GENERIC)
+}
+
 @Composable
 fun VoiceScreen(viewModel: HydraViewModel) {
     val context = LocalContext.current
-    var state by remember { mutableStateOf(VoiceState.Processing) }
     var recognizedText by remember { mutableStateOf("") }
-    
-    // Setup Android's native SpeechRecognizer
+    var state by remember { mutableStateOf(VoiceState.Processing) }
+
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     
-    val recognitionListener = remember {
-        object : RecognitionListener {
+    val startListening = {
+        recognizedText = ""
+        state = VoiceState.Processing
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+        
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
@@ -62,25 +100,19 @@ fun VoiceScreen(viewModel: HydraViewModel) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
                     recognizedText = matches[0]
-                } else {
-                    recognizedText = "No speech detected"
                 }
                 state = VoiceState.ReadyToSave
             }
-            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onPartialResults(partialResults: Bundle?) {
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    recognizedText = matches[0]
+                }
+            }
             override fun onEvent(eventType: Int, params: Bundle?) {}
-        }
-    }
-    
-    val startListening = {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN") // Set to India English
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        }
-        speechRecognizer.setRecognitionListener(recognitionListener)
+        })
+        
         speechRecognizer.startListening(intent)
-        state = VoiceState.Processing
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -95,12 +127,10 @@ fun VoiceScreen(viewModel: HydraViewModel) {
         }
     )
 
-    // Ask for permission and start listening on launch
     LaunchedEffect(Unit) {
         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
     
-    // Clean up SpeechRecognizer when screen is disposed
     DisposableEffect(Unit) {
         onDispose {
             speechRecognizer.destroy()
@@ -113,24 +143,26 @@ fun VoiceScreen(viewModel: HydraViewModel) {
     ) {
         when (state) {
             VoiceState.Processing -> ProcessingScreen(
-                onClose = { /* TODO: Navigate back */ }
+                text = recognizedText,
+                onClose = { /* TODO */ }
             )
             VoiceState.ReadyToSave -> ReadyToSaveScreen(
                 recognizedText = recognizedText,
-                onClose = { /* TODO: Navigate back */ },
+                onClose = { /* TODO */ },
                 onSave = { 
-                    if (recognizedText.isNotBlank()) {
+                    if (recognizedText.isNotBlank() && !recognizedText.startsWith("Error")) {
                         viewModel.sendMessage(recognizedText)
                     }
                     startListening() 
-                }
+                },
+                onRetry = { startListening() }
             )
         }
     }
 }
 
 @Composable
-fun ProcessingScreen(onClose: () -> Unit) {
+fun ProcessingScreen(text: String, onClose: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         IconButton(
             onClick = onClose,
@@ -165,7 +197,7 @@ fun ProcessingScreen(onClose: () -> Unit) {
                     brush = Brush.radialGradient(
                         colors = listOf(
                             MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
                             Color.Transparent
                         )
                     ),
@@ -174,18 +206,21 @@ fun ProcessingScreen(onClose: () -> Unit) {
         )
 
         Text(
-            text = "Listening...",
+            text = if (text.isEmpty()) "Listening..." else text,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 100.dp),
-            fontSize = 16.sp
+                .padding(bottom = 100.dp, start = 32.dp, end = 32.dp),
+            fontSize = 18.sp,
+            fontStyle = FontStyle.Italic
         )
     }
 }
 
 @Composable
-fun ReadyToSaveScreen(recognizedText: String, onClose: () -> Unit, onSave: () -> Unit) {
+fun ReadyToSaveScreen(recognizedText: String, onClose: () -> Unit, onSave: () -> Unit, onRetry: () -> Unit) {
+    val parsedIntent = parseRecognizedText(recognizedText)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -200,7 +235,7 @@ fun ReadyToSaveScreen(recognizedText: String, onClose: () -> Unit, onSave: () ->
             }
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = "Ready to save",
+                text = if (parsedIntent.type == IntentType.ERROR) "Oops" else "Confirm Action",
                 color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 18.sp
@@ -211,6 +246,7 @@ fun ReadyToSaveScreen(recognizedText: String, onClose: () -> Unit, onSave: () ->
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Display transcript
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -233,65 +269,127 @@ fun ReadyToSaveScreen(recognizedText: String, onClose: () -> Unit, onSave: () ->
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = MaterialTheme.shapes.small
-                )
-                .padding(24.dp)
-        ) {
-            Column {
-                Text(
-                    text = "₹200.0", // TODO: Extract from text
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Today",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp
-                )
+        if (parsedIntent.type == IntentType.EXPENSE) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.small
+                    )
+                    .padding(24.dp)
+            ) {
+                Column {
+                    Text(
+                        text = "₹${parsedIntent.amount}",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 44.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Expense Log",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp
+                    )
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
-                .padding(vertical = 8.dp)
-        ) {
-            DetailRow(icon = Icons.Default.Restaurant, label = "Category", value = "Food and Dining")
-            Divider(color = MaterialTheme.colorScheme.background, modifier = Modifier.padding(horizontal = 16.dp))
-            DetailRow(icon = Icons.Default.Payments, label = "Payment mode", value = "Cash")
-            Divider(color = MaterialTheme.colorScheme.background, modifier = Modifier.padding(horizontal = 16.dp))
-            DetailRow(icon = Icons.Default.Subject, label = "Note", value = "lunch")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
+                    .padding(vertical = 8.dp)
+            ) {
+                DetailRow(icon = Icons.Default.Subject, label = "Note", value = parsedIntent.note ?: "")
+            }
+        } else if (parsedIntent.type == IntentType.GENERIC) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.small
+                    )
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Send this message to Assistant?",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 16.sp
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Button(
-            onClick = onSave,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(bottom = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-            shape = MaterialTheme.shapes.small
-        ) {
-            Text(
-                text = "That's magic.",
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
+        if (parsedIntent.type == IntentType.ERROR) {
+            Button(
+                onClick = onRetry,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(bottom = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    text = "Try Again",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .padding(end = 8.dp, bottom = 8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = "Retry",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+                
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier
+                        .weight(2f)
+                        .height(56.dp)
+                        .padding(bottom = 8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = if (parsedIntent.type == IntentType.EXPENSE) "Confirm & Log" else "Send Message",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+            }
         }
     }
 }
