@@ -1,5 +1,13 @@
 package com.hydra.shell.ui.screens
 
+import android.Manifest
+import android.content.Intent
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,6 +26,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,7 +39,72 @@ enum class VoiceState {
 
 @Composable
 fun VoiceScreen() {
+    val context = LocalContext.current
     var state by remember { mutableStateOf(VoiceState.Processing) }
+    var recognizedText by remember { mutableStateOf("") }
+    
+    // Setup Android's native SpeechRecognizer
+    val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
+    
+    val recognitionListener = remember {
+        object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                recognizedText = "Error recognizing speech (code: $error)"
+                state = VoiceState.ReadyToSave
+            }
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    recognizedText = matches[0]
+                } else {
+                    recognizedText = "No speech detected"
+                }
+                state = VoiceState.ReadyToSave
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        }
+    }
+    
+    val startListening = {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN") // Set to India English
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        speechRecognizer.setRecognitionListener(recognitionListener)
+        speechRecognizer.startListening(intent)
+        state = VoiceState.Processing
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                startListening()
+            } else {
+                recognizedText = "Microphone permission denied"
+                state = VoiceState.ReadyToSave
+            }
+        }
+    )
+
+    // Ask for permission and start listening on launch
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    
+    // Clean up SpeechRecognizer when screen is disposed
+    DisposableEffect(Unit) {
+        onDispose {
+            speechRecognizer.destroy()
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -38,11 +112,15 @@ fun VoiceScreen() {
     ) {
         when (state) {
             VoiceState.Processing -> ProcessingScreen(
-                onClose = { /* Navigate back or dismiss */ }
+                onClose = { /* TODO: Navigate back */ }
             )
             VoiceState.ReadyToSave -> ReadyToSaveScreen(
-                onClose = { /* Navigate back or dismiss */ },
-                onSave = { state = VoiceState.Processing } // Reset for demo purposes
+                recognizedText = recognizedText,
+                onClose = { /* TODO: Navigate back */ },
+                onSave = { 
+                    // Start listening again for demo purposes
+                    startListening() 
+                }
             )
         }
     }
@@ -51,7 +129,6 @@ fun VoiceScreen() {
 @Composable
 fun ProcessingScreen(onClose: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Top Close Button
         IconButton(
             onClick = onClose,
             modifier = Modifier
@@ -65,7 +142,6 @@ fun ProcessingScreen(onClose: () -> Unit) {
             )
         }
 
-        // Glowing Orb Animation
         val infiniteTransition = rememberInfiniteTransition(label = "OrbTransition")
         val scale by infiniteTransition.animateFloat(
             initialValue = 0.8f,
@@ -94,9 +170,8 @@ fun ProcessingScreen(onClose: () -> Unit) {
                 )
         )
 
-        // Loading Text
         Text(
-            text = "Sorting the details...",
+            text = "Listening...",
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -107,13 +182,12 @@ fun ProcessingScreen(onClose: () -> Unit) {
 }
 
 @Composable
-fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
+fun ReadyToSaveScreen(recognizedText: String, onClose: () -> Unit, onSave: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -129,12 +203,11 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
                 fontSize = 18.sp
             )
             Spacer(modifier = Modifier.weight(1f))
-            Spacer(modifier = Modifier.width(48.dp)) // Balance the close button width
+            Spacer(modifier = Modifier.width(48.dp))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Transcription Pill
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -150,7 +223,7 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "\"spent 200 rupees on lunch\"",
+                text = "\"$recognizedText\"",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontStyle = FontStyle.Italic,
                 fontSize = 15.sp
@@ -159,7 +232,6 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Amount Card
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -171,7 +243,7 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
         ) {
             Column {
                 Text(
-                    text = "₹200.0",
+                    text = "₹200.0", // TODO: Extract from text
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 44.sp,
                     fontWeight = FontWeight.Bold
@@ -187,7 +259,6 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Details Card
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -203,7 +274,6 @@ fun ReadyToSaveScreen(onClose: () -> Unit, onSave: () -> Unit) {
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Bottom Button
         Button(
             onClick = onSave,
             modifier = Modifier
