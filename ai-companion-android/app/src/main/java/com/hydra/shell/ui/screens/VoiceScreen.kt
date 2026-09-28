@@ -8,6 +8,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.hydra.shell.HydraViewModel
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -38,7 +39,7 @@ enum class VoiceState {
 }
 
 @Composable
-fun VoiceScreen() {
+fun VoiceScreen(viewModel: HydraViewModel) {
     val context = LocalContext.current
     var state by remember { mutableStateOf(VoiceState.Processing) }
     var recognizedText by remember { mutableStateOf("") }
@@ -118,7 +119,9 @@ fun VoiceScreen() {
                 recognizedText = recognizedText,
                 onClose = { /* TODO: Navigate back */ },
                 onSave = { 
-                    // Start listening again for demo purposes
+                    if (recognizedText.isNotBlank()) {
+                        viewModel.sendMessage(recognizedText)
+                    }
                     startListening() 
                 }
             )

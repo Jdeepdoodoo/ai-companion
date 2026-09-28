@@ -13,9 +13,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.hydra.shell.HydraViewModel
 import com.hydra.shell.ui.screens.ChatScreen
-import com.hydra.shell.ui.screens.HomeScreen
-import com.hydra.shell.ui.screens.ProfileScreen
-import com.hydra.shell.ui.screens.SettingsScreen
 import com.hydra.shell.ui.screens.VoiceScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -24,11 +21,8 @@ fun AppNavigation(viewModel: HydraViewModel) {
     val navController = rememberNavController()
 
     val items = listOf(
-        Screen.Home,
         Screen.Chat,
-        Screen.Voice,
-        Screen.Profile,
-        Screen.Settings
+        Screen.Voice
     )
 
     Scaffold(
@@ -72,14 +66,11 @@ fun AppNavigation(viewModel: HydraViewModel) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
+            startDestination = Screen.Chat.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) { HomeScreen() }
             composable(Screen.Chat.route) { ChatScreen(viewModel) }
-            composable(Screen.Voice.route) { VoiceScreen() }
-            composable(Screen.Profile.route) { ProfileScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Voice.route) { VoiceScreen(viewModel) }
         }
     }
 }
