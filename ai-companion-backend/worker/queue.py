@@ -43,12 +43,14 @@ async def enqueue_task(user_id: int, user_input: str):
         await redis_client.lpush(QUEUE_NAME, task_payload)
         return run.id
 
+
 async def process_task(task_payload: str, checkpointer):
     """Processes a single task using the LangGraph agent."""
     data = json.loads(task_payload)
     run_id = data["run_id"]
     user_id = data["user_id"]
-    user_input = data["user_input"]
+    user_input = data.get("user_input")
+    resume_data = data.get("resume_data")
     
     async with async_session_maker() as session:
         # Update run status
@@ -62,30 +64,50 @@ async def process_task(task_payload: str, checkpointer):
         await session.commit()
         
     try:
-        # Compile graph and run
         graph = get_compiled_graph(checkpointer)
-        config: RunnableConfig = {
+        config = {
             "configurable": {
-                "thread_id": str(user_id), # Group checkpointer history by user
+                "thread_id": str(user_id),
                 "user_id": user_id
             }
         }
         
-        # Invoke agent
-        response = await graph.ainvoke(
-            {"messages": [HumanMessage(content=user_input)]},
-            config=config
-        )
+        from langgraph.types import Command
         
-        final_message = response["messages"][-1].content
-        if isinstance(final_message, list): final_message = " ".join(m.get("text", "") if isinstance(m, dict) else str(m) for m in final_message)
+        if resume_data:
+            # We are resuming an interrupted graph
+            logger.info(f"Resuming run {run_id} with data {resume_data}")
+            response = await graph.ainvoke(Command(resume=resume_data), config=config)
+        else:
+            response = await graph.ainvoke(
+                {"messages": [HumanMessage(content=user_input)]},
+                config=config
+            )
+            
+        # Check if the graph is paused/interrupted
+        state = await graph.aget_state(config)
         
         async with async_session_maker() as session:
             result = await session.execute(select(AgentRun).where(AgentRun.id == run_id))
             run = result.scalars().first()
-            run.status = "completed"
-            run.output_data = {"response": final_message}
-            run.completed_at = datetime.utcnow()
+            
+            if state.next:
+                # Graph is interrupted! Find the pending tool calls
+                last_msg = state.values["messages"][-1]
+                tool_calls = getattr(last_msg, "tool_calls", [])
+                
+                run.status = "draft"
+                run.output_data = {"tool_calls": tool_calls}
+            else:
+                # Completed
+                final_message = state.values["messages"][-1].content
+                if isinstance(final_message, list): 
+                    final_message = " ".join(m.get("text", "") if isinstance(m, dict) else str(m) for m in final_message)
+                
+                run.status = "completed"
+                run.output_data = {"response": final_message}
+                run.completed_at = datetime.utcnow()
+                
             await session.commit()
             
     except Exception as e:
@@ -94,9 +116,11 @@ async def process_task(task_payload: str, checkpointer):
             result = await session.execute(select(AgentRun).where(AgentRun.id == run_id))
             run = result.scalars().first()
             run.status = "failed"
-            run.error_message = str(e) + "\n" + traceback.format_exc()
+            run.error_message = str(e) + "
+" + traceback.format_exc()
             run.completed_at = datetime.utcnow()
             await session.commit()
+
 
 async def worker_loop(checkpointer):
     """Continuously polls Redis for new jobs and processes them."""

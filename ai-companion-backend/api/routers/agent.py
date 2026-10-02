@@ -1,4 +1,5 @@
 from typing import Literal, Optional
+import json, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -47,6 +48,15 @@ async def get_run_status(run_id: int, current_user: User = Depends(get_current_u
                 {"type": "text_card", "content": run.output_data.get("response", "Success")}
             ]
         )
+    elif run.status == "draft":
+        tool_calls = run.output_data.get("tool_calls", [])
+        return SDUIResponse(
+            status="draft",
+            message="Action requires confirmation.",
+            components=[
+                {"type": "draft_confirmation", "tool_calls": tool_calls}
+            ]
+        )
     elif run.status == "failed":
         return SDUIResponse(
             status="failed",
@@ -61,3 +71,31 @@ async def get_run_status(run_id: int, current_user: User = Depends(get_current_u
             message="Processing...",
             components=[]
         )
+
+class ResumePayload(BaseModel):
+    action: Literal["confirm", "cancel"]
+    
+@router.post("/resume/{run_id}")
+async def resume_agent(run_id: int, payload: ResumePayload, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    """Resumes an interrupted task with confirmation or cancellation."""
+    result = await session.execute(
+        select(AgentRun).where(AgentRun.id == run_id, AgentRun.user_id == current_user.id)
+    )
+    run = result.scalars().first()
+    
+    if not run or run.status != "draft":
+        raise HTTPException(status_code=400, detail="Run is not in draft state")
+        
+    resume_data = "approved" if payload.action == "confirm" else "cancelled"
+    
+    # Enqueue resume task
+    task_payload = json.dumps({
+        "run_id": run.id,
+        "user_id": current_user.id,
+        "resume_data": resume_data
+    })
+    
+    from worker.queue import redis_client, QUEUE_NAME
+    await redis_client.lpush(QUEUE_NAME, task_payload)
+    
+    return {"status": "enqueued", "run_id": run_id}

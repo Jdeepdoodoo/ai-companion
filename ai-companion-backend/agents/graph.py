@@ -105,4 +105,4 @@ workflow.add_edge("expense_tools", "expense_agent")
 workflow.add_edge("stock_tools", "stock_agent")
 
 def get_compiled_graph(saver: AsyncPostgresSaver = None):
-    return workflow.compile(checkpointer=saver)
+    return workflow.compile(checkpointer=saver, interrupt_before=['expense_tools', 'stock_tools'])
