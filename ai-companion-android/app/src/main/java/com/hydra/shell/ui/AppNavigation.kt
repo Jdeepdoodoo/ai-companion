@@ -17,6 +17,7 @@ import com.hydra.shell.HydraViewModel
 import com.hydra.shell.ui.screens.ChatScreen
 import com.hydra.shell.ui.screens.VoiceScreen
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(viewModel: HydraViewModel) {
     val navController = rememberNavController()
